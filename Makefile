@@ -1,4 +1,7 @@
-all: scanner
+all: scanner puzzlesolver
 
-client: scanner.cpp
+scanner: scanner.cpp
 	g++ --std=c++11 scanner.cpp -o scanner
+
+puzzlesolver: puzzlesolver.cpp
+	g++ --std=c++11 puzzlesolver.cpp -o puzzlesolver

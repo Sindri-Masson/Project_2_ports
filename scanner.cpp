@@ -19,13 +19,6 @@ void make_socket_address(sockaddr_in *address, int port, std::string ip_address)
     socket_address->sin_addr.s_addr = inet_addr(ip_address.c_str());
 }
 
-void send_to_server(int socket, std::string message)
-{
-    if (send(socket, message.data(), message.size(), 0) < 0)
-    {
-        perror("Error sending message to server\n");
-    }
-}
 
 int scan_ports(char *ip, int low, int high)
 {
@@ -40,46 +33,42 @@ int scan_ports(char *ip, int low, int high)
     char buffer[4096];
     
     // Create a socket
-
+    socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (socket_fd < 0)
+    {
+        perror("Error creating socket\n");
+        return -1;
+    }
 
     for (i = low; i <= high; i++)
     {
-        socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
-        if (socket_fd < 0)
-        {
-            perror("Error creating socket\n");
-            return -1;
-        }
+
         // Set the address
         make_socket_address(&address, i, ip);
 
         //set timeout so recv doesnt halt forever on non responding ports
         struct timeval read_timeout;
         read_timeout.tv_sec = 0;
-        read_timeout.tv_usec = 30000;
+        read_timeout.tv_usec = 50000;
         setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof(read_timeout));
 
 
         sendto(socket_fd,"HelloWorld",sizeof("HelloWorld") - 1,0,(struct sockaddr *)&address,sizeof(address));
 
         socklen_t len = sizeof(address);
-        int nread = recvfrom(socket_fd,buffer,sizeof(buffer),0,(struct sockaddr *)&address,&len);       
+        int nread = recvfrom(socket_fd,buffer,sizeof(buffer),0,(struct sockaddr *)&address,&len); 
+
+     
         if(nread > 0)
         {
-            std:: cout << "from " << inet_ntoa(address.sin_addr) << " port " << ntohs(address.sin_port) << " : " << buffer << std:: endl;
+            std:: cout << "from " << inet_ntoa(address.sin_addr) << " port " << ntohs(address.sin_port) << " is open " << std:: endl;
         }
         memset(buffer, 0, sizeof(buffer));
 
 
-        close(socket_fd);
     }
+        close(socket_fd);
 
-    // Print the open ports
-    // std::cout << "Open ports: " << count << std::endl;
-    // for (i = 0; i < open_ports.size(); i++)
-    // {
-    //     std::cout << open_ports[i] << std::endl;
-    // }
 
     return 0;
 }
