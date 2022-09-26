@@ -468,7 +468,7 @@ int main(int argc, char *argv[])
         std::cout << "knock pattern vector: " << knock_pattern_vector[i] << std::endl;
     }
 
-    secret_phrase = "mellon";//"Ennyn Durin Aran Moria. Pedo Mellon a Minno. Im Narvi hain echant. Celebrimbor o Eregion teithant i thiw hin.";
+    secret_phrase = "Ennyn Durin Aran Moria. Pedo Mellon a Minno. Im Narvi hain echant. Celebrimbor o Eregion teithant i thiw hin.";
     std::cout << "secret phrase: " << secret_phrase << std::endl;
 
 
