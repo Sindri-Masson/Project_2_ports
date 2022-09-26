@@ -92,7 +92,7 @@ std::string solve_checksum(int port,std::string spoof_ip,int checksum,char* dest
     //some address resolution
 	strcpy(source_ip , source_ip);
     
-    make_socket_address(&sin,4099,dest_ip);
+    make_socket_address(&sin,port,dest_ip);
     struct in_addr meow;
     meow.s_addr = inet_addr(source_ip);
 
@@ -208,6 +208,10 @@ std::string solve_oracle(std::string port1, std::string &port2,int port, char* i
     char buffer[8192];
     std::string recvmsg;
     
+    std::cout << "port 1: " << port1 << std::endl;
+    std::cout << "port 2: " << port2 << std::endl;
+
+
     // Create a socket
     socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
     
@@ -238,7 +242,8 @@ std::string solve_oracle(std::string port1, std::string &port2,int port, char* i
 
     if(nread > 0)
     {
-        //get a list of responses from the server
+        // std:: cout << "from " << inet_ntoa(address.sin_addr) << " port " << ntohs(address.sin_port) << " : " << buffer << std:: endl;
+
         if (buffer[0] != 'I'){
             std:: cout << "from " << inet_ntoa(address.sin_addr) << " port " << ntohs(address.sin_port) << " : " << buffer << std:: endl;
             recvmsg = buffer;
@@ -251,9 +256,11 @@ std::string solve_oracle(std::string port1, std::string &port2,int port, char* i
 
     close(socket_fd);
 
+    std::cout << "recvmsg: " << recvmsg << std::endl;
+
     if (recvmsg.substr(0,4) == port1){
        
-        port2  = recvmsg.substr(4,8);
+         port2  = recvmsg.substr(4,8);
          std::cout << "port 2:  " << recvmsg.substr(4,8) << std::endl;
     }
     else{
@@ -431,6 +438,8 @@ int main(int argc, char *argv[])
     std::string secret_phrase;
     std::string knock_pattern;
 
+    int oracle_port;
+
     for(int i = 0; i < msg_list.size(); i++){
 
         // checksum solver, check if message starts with h (Hello, group16!)
@@ -448,16 +457,18 @@ int main(int argc, char *argv[])
         //solve oracle
         if(msg_list[i][0] == 'I'){
             //TODO: solve oracle port without hax 
-            knock_pattern = solve_oracle(secret_port1,secret_port2,open_ports[i],target_IP);
-        }
-        
+            oracle_port = open_ports[i];
+            // knock_pattern = solve_oracle(secret_port1,secret_port2,open_ports[i],target_IP);
+        }        
     }
+    knock_pattern = solve_oracle(secret_port1,secret_port2,oracle_port,target_IP);
+
     std::vector<int> knock_pattern_vector = parse_to_vector(knock_pattern);
     for(int i = 0; i < knock_pattern_vector.size(); i++){
         std::cout << "knock pattern vector: " << knock_pattern_vector[i] << std::endl;
     }
 
-    secret_phrase = "Ennyn Durin Aran Moria. Pedo Mellon a Minno. Im Narvi hain echant. Celebrimbor o Eregion teithant i thiw hin.";
+    secret_phrase = "mellon";//"Ennyn Durin Aran Moria. Pedo Mellon a Minno. Im Narvi hain echant. Celebrimbor o Eregion teithant i thiw hin.";
     std::cout << "secret phrase: " << secret_phrase << std::endl;
 
 
