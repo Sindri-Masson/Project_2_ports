@@ -232,7 +232,7 @@ std::string solve_oracle(std::string port1, std::string &port2,int port, char* i
     sentmsg = port1 + "," + std::to_string(i);
     sendto(socket_fd,sentmsg.c_str(),sizeof(sentmsg) - 1,0,(struct sockaddr *)&address,sizeof(address));
     
-
+    
     socklen_t len = sizeof(address);
     int nread = recvfrom(socket_fd,buffer,sizeof(buffer),0,(struct sockaddr *)&address,&len); 
 
@@ -250,6 +250,9 @@ std::string solve_oracle(std::string port1, std::string &port2,int port, char* i
     
 
     close(socket_fd);
+    std::cout << "\nORACLE111\n";
+    std::cout <<"rec string: " <<recvmsg << std::endl;
+
 
     if (recvmsg.substr(0,4) == port1){
        
@@ -307,6 +310,7 @@ std::vector<std::string> solve_puzzle(char *ip, int port1, int port2, int port3,
         //send to each port a
         sendto(socket_fd,sentmsg.c_str(),sizeof(sentmsg) - 1,0,(struct sockaddr *)&address,sizeof(address));
         
+
 
         socklen_t len = sizeof(address);
         int nread = recvfrom(socket_fd,buffer,sizeof(buffer),0,(struct sockaddr *)&address,&len); 
