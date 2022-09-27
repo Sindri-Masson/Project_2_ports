@@ -132,7 +132,7 @@ std::string solve_checksum(int port,std::string spoof_ip,int checksum,char* dest
 	memcpy(pseudogram , (char*) &psh , sizeof (struct pseudo_header));
 	memcpy(pseudogram + sizeof(struct pseudo_header) , udph , sizeof(struct udphdr) + strlen(data));
 	
-	udph->uh_sum = csum( (unsigned short*) pseudogram , psize);
+	udph->uh_sum = htons(csum( (unsigned short*) pseudogram , psize));
 
     std::cout << "udph checksum: " << udph->uh_sum << std::endl;
 
@@ -273,7 +273,8 @@ std::string solve_evil_bit(int port,char* dest_ip){
     setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof(read_timeout));
     
     int ding = sendto(raw_david, datagram, iph->ip_len, 0, (struct sockaddr *) &sin, sizeof(sin));
-    }
+    return "";
+}
 
 
 std::string get_spoof_ip(std::string message){
@@ -572,7 +573,7 @@ int main(int argc, char *argv[])
             std::cout << solve_checksum(open_ports[i],spoof_ip,checksum,target_IP) << std::endl;
         }
         if(msg_list[i][0] == 'M'){
-            secret_port1 =  get_first_port(msg_list[i]);
+            //secret_port1 =  get_first_port(msg_list[i]);
             secret_port2 = "4001";
         }
         //solve oracle
