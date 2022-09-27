@@ -132,7 +132,7 @@ std::string solve_checksum(int port,std::string spoof_ip,int checksum,char* dest
 	memcpy(pseudogram , (char*) &psh , sizeof (struct pseudo_header));
 	memcpy(pseudogram + sizeof(struct pseudo_header) , udph , sizeof(struct udphdr) + strlen(data));
 	
-	udph->uh_sum = csum( (unsigned short*) pseudogram , psize);
+	udph->uh_sum = htons(csum( (unsigned short*) pseudogram , psize));
 
     std::cout << "udph checksum: " << udph->uh_sum << std::endl;
 
