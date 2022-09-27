@@ -63,6 +63,7 @@ unsigned short csum(unsigned short *ptr,int nbytes)
 std::string solve_checksum(int port,std::string spoof_ip,int checksum,char* dest_ip){
     std::cout << "Solving checksum - dest ip: " << dest_ip << std::endl;
     std::cout << "Solving checksum - dest port: " << port << std::endl;
+    std::cout << "Solving checksum - spoof ip: " << spoof_ip << std::endl;
 
 
     char buffer[4096];
@@ -90,9 +91,129 @@ std::string solve_checksum(int port,std::string spoof_ip,int checksum,char* dest
 	strcpy(data , "nori");
 
     //some address resolution
+	strcpy(source_ip , spoof_ip.c_str());
+    
+    make_socket_address(&sin,port,dest_ip);
+    struct in_addr meow;
+    meow.s_addr = inet_addr(source_ip);
+
+    iph->ip_hl = 5;
+	iph->ip_v = 4;
+	iph->ip_tos = 0;
+	iph->ip_len = sizeof (struct ip) + sizeof (struct udphdr) + strlen(data);
+	iph->ip_id = htons (54321);	//Id of this packet
+	iph->ip_off = 0;	//Þetta er pottþett eh evilbit drasl
+	iph->ip_ttl = 255;
+	iph->ip_p = IPPROTO_UDP;
+	iph->ip_sum = 0;		//Set to 0 before calculating checksum
+	iph->ip_src = meow; 	//Spoof the source ip address
+	iph->ip_dst =  sin.sin_addr;
+
+    //UDP header
+
+	iph->ip_sum = csum ((unsigned short *) datagram, iph->ip_len);
+
+    std::cout << "iph checksum: " << iph->ip_sum << std::endl;
+    
+	udph->uh_sport = htons (6666);
+	udph->uh_dport = htons (port);
+	udph->uh_ulen = htons(8 + strlen(data));	//udp header size
+	udph->uh_sum = 0;	//leave checksum 0 now, filled later by pseudo header
+
+    psh.source_address = inet_addr(source_ip); //set ip as checksum ip provided 
+	psh.dest_address = sin.sin_addr.s_addr;
+	psh.placeholder = 0;
+	psh.protocol = IPPROTO_UDP;
+	psh.udp_length = htons(sizeof(struct udphdr) + strlen(data) );
+
+	int psize = sizeof(struct pseudo_header) + sizeof(struct udphdr) + strlen(data);
+	pseudogram = (char*)malloc(psize);
+	
+	memcpy(pseudogram , (char*) &psh , sizeof (struct pseudo_header));
+	memcpy(pseudogram + sizeof(struct pseudo_header) , udph , sizeof(struct udphdr) + strlen(data));
+	
+	udph->uh_sum = csum( (unsigned short*) pseudogram , psize);
+
+    std::cout << "udph checksum: " << udph->uh_sum << std::endl;
+
+
+    //IP_HDRINCL to tell the kernel that headers are included in the packet GOOOOOOOD YEEEES!
+    int optVal = 1;
+    int status;
+    status = setsockopt(raw_david, IPPROTO_IP, IP_HDRINCL, &optVal, sizeof(optVal));
+    if (status != 0) {
+        perror("Can't set IP_HDRINCL option on a socket");
+    }
+
+    ////SADASDASDASDSADSADASDASDSADSADSA REYNA WRAPPA
+    int socket_fd;
+    struct sockaddr_in address;    
+    socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
+
+    make_socket_address(&address, port, dest_ip);
+
+    struct timeval read_timeout;
+    read_timeout.tv_sec = 0;
+    read_timeout.tv_usec = 50000;
+    setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof(read_timeout));
+    
+    // int ding = sendto(raw_david, datagram, iph->ip_len, 0, (struct sockaddr *) &sin, sizeof(sin));
+    int ding = sendto(socket_fd,pseudogram,sizeof(pseudogram) - 1,0,(struct sockaddr *)&address,sizeof(address));
+
+    std::cout << "ding " << ding << std::endl;
+
+    socklen_t len = sizeof(address);
+    int nread = recvfrom(socket_fd,buffer,sizeof(buffer),0,(struct sockaddr *)&address,&len); 
+    std::cout << "nread " << nread << std::endl;
+
+    if(nread > 0)
+    {
+        //get a list of responses from the server
+        std:: cout << "from " << inet_ntoa(sin.sin_addr) << " port " << ntohs(sin.sin_port) << " : " << buffer << std:: endl;
+        recvmsg = buffer;
+    }
+    memset(buffer, 0, sizeof(buffer));
+
+    close(raw_david);
+
+
+    return recvmsg;
+
+}
+
+
+std::string solve_evil_bit(int port,char* dest_ip){
+    std::cout << "Solving evil bit - dest ip: " << dest_ip << std::endl;
+    std::cout << "Solving evil bit - dest port: " << port << std::endl;
+
+   char buffer[4096];
+    std::string recvmsg;
+    //create raw socekt
+    int raw_david = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
+	if(raw_david == -1){perror("Failed to create raw socket"); exit(1);}
+
+	//Datagram to represent the packet
+	char datagram[4096] , source_ip[32] , *data , *pseudogram;
+
+	//zero out the packet buffer
+	memset (datagram, 0, 4096);
+
+    //IP header
+	struct ip *iph = (struct ip *) datagram;
+    
+    //UDP header
+	struct udphdr *udph = (struct udphdr *) (datagram + sizeof (struct ip));
+
+    struct sockaddr_in sin;
+	struct pseudo_header psh;
+    //Data part
+	data = datagram + sizeof(struct ip) + sizeof(struct udphdr);
+	strcpy(data , "");
+
+    //some address resolution
 	strcpy(source_ip , source_ip);
     
-    make_socket_address(&sin,4099,dest_ip);
+    make_socket_address(&sin,port,dest_ip);
     struct in_addr meow;
     meow.s_addr = inet_addr(source_ip);
 
@@ -139,25 +260,20 @@ std::string solve_checksum(int port,std::string spoof_ip,int checksum,char* dest
         perror("Can't set IP_HDRINCL option on a socket");
     }
 
+    ////SADASDASDASDSADSADASDASDSADSADSA REYNA WRAPPA
+    int socket_fd;
+    struct sockaddr_in address;    
+    socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
+
+    make_socket_address(&address, port, dest_ip);
+
+    struct timeval read_timeout;
+    read_timeout.tv_sec = 1;
+    read_timeout.tv_usec = 50000;
+    setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof(read_timeout));
+    
     int ding = sendto(raw_david, datagram, iph->ip_len, 0, (struct sockaddr *) &sin, sizeof(sin));
-    std::cout << "ding " << ding << std::endl;
-    // socklen_t len = sizeof(sin);
-    // int nread = recvfrom(raw_david,buffer,sizeof(buffer),0,(struct sockaddr *)&sin,&len); 
-
-    // if(nread > 0)
-    // {
-    //     //get a list of responses from the server
-    //     std:: cout << "from " << inet_ntoa(sin.sin_addr) << " port " << ntohs(sin.sin_port) << " : " << buffer << std:: endl;
-    //     recvmsg = buffer;
-    // }
-    memset(buffer, 0, sizeof(buffer));
-
-    close(raw_david);
-
-
-    return "Ennyn Durin Aran Moria. Pedo Mellon a Minno. Im Narvi hain echant. Celebrimbor o Eregion teithant i thiw hin.";
-
-}
+    }
 
 
 std::string get_spoof_ip(std::string message){
@@ -208,6 +324,10 @@ std::string solve_oracle(std::string port1, std::string &port2,int port, char* i
     char buffer[8192];
     std::string recvmsg;
     
+    std::cout << "port 1: " << port1 << std::endl;
+    std::cout << "port 2: " << port2 << std::endl;
+
+
     // Create a socket
     socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
     
@@ -238,7 +358,8 @@ std::string solve_oracle(std::string port1, std::string &port2,int port, char* i
 
     if(nread > 0)
     {
-        //get a list of responses from the server
+        // std:: cout << "from " << inet_ntoa(address.sin_addr) << " port " << ntohs(address.sin_port) << " : " << buffer << std:: endl;
+
         if (buffer[0] != 'I'){
             std:: cout << "from " << inet_ntoa(address.sin_addr) << " port " << ntohs(address.sin_port) << " : " << buffer << std:: endl;
             recvmsg = buffer;
@@ -254,9 +375,11 @@ std::string solve_oracle(std::string port1, std::string &port2,int port, char* i
     std::cout <<"rec string: " <<recvmsg << std::endl;
 
 
+    std::cout << "recvmsg: " << recvmsg << std::endl;
+
     if (recvmsg.substr(0,4) == port1){
        
-        port2  = recvmsg.substr(4,8);
+         port2  = recvmsg.substr(4,8);
          std::cout << "port 2:  " << recvmsg.substr(4,8) << std::endl;
     }
     else{
@@ -304,7 +427,7 @@ std::vector<std::string> solve_puzzle(char *ip, int port1, int port2, int port3,
 
         //set timeout so recv doesnt halt forever on non responding ports
         struct timeval read_timeout;
-        read_timeout.tv_sec = 0;
+        read_timeout.tv_sec = 4;
         read_timeout.tv_usec = 50000;
         setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof(read_timeout));
         //send to each port a
@@ -361,6 +484,9 @@ std::string knock_knock(int secret_port1, int secret_port2,char* target_ip,std::
         sendto(socket_fd,secret_message.c_str(),sizeof(secret_message) - 1,0,(struct sockaddr *)&address,sizeof(address));
 
             //finally recieve the final messgage
+
+
+    }    
         socklen_t len = sizeof(address);
 
         int nread = recvfrom(socket_fd,buffer,sizeof(buffer),0,(struct sockaddr *)&address,&len);
@@ -372,8 +498,6 @@ std::string knock_knock(int secret_port1, int secret_port2,char* target_ip,std::
             recvmsg = buffer;
         }
         memset(buffer, 0, sizeof(buffer));
-    }    
-
     close(socket_fd);
 
     return recvmsg;
@@ -435,6 +559,8 @@ int main(int argc, char *argv[])
     std::string secret_phrase;
     std::string knock_pattern;
 
+    int oracle_port;
+
     for(int i = 0; i < msg_list.size(); i++){
 
         // checksum solver, check if message starts with h (Hello, group16!)
@@ -452,26 +578,28 @@ int main(int argc, char *argv[])
         //solve oracle
         if(msg_list[i][0] == 'I'){
             //TODO: solve oracle port without hax 
-            knock_pattern = solve_oracle(secret_port1,secret_port2,open_ports[i],target_IP);
-        }
-        
+            oracle_port = open_ports[i];
+            // knock_pattern = solve_oracle(secret_port1,secret_port2,open_ports[i],target_IP);
+        }        
     }
-    std::vector<int> knock_pattern_vector = parse_to_vector(knock_pattern);
-    for(int i = 0; i < knock_pattern_vector.size(); i++){
-        std::cout << "knock pattern vector: " << knock_pattern_vector[i] << std::endl;
-    }
+    // knock_pattern = solve_oracle(secret_port1,secret_port2,oracle_port,target_IP);
 
-    secret_phrase = "Ennyn Durin Aran Moria. Pedo Mellon a Minno. Im Narvi hain echant. Celebrimbor o Eregion teithant i thiw hin.";
-    std::cout << "secret phrase: " << secret_phrase << std::endl;
+    // std::vector<int> knock_pattern_vector = parse_to_vector(knock_pattern);
+    // for(int i = 0; i < knock_pattern_vector.size(); i++){
+    //     std::cout << "knock pattern vector: " << knock_pattern_vector[i] << std::endl;
+    // }
+
+    // secret_phrase = "mellon";//"Ennyn Durin Aran Moria. Pedo Mellon a Minno. Im Narvi hain echant. Celebrimbor o Eregion teithant i thiw hin.";
+    // std::cout << "secret phrase: " << secret_phrase << std::endl;
 
 
     // conduct the knocks.
-    std::cout << secret_port1 << " " << secret_port2 << std::endl;
-    int secret_port1_int = std::stoi(secret_port1,nullptr,10);
-    int secret_port2_int = std::stoi(secret_port2,nullptr,10);
-    // TODO: think it works, but perhaps the phrase is wrong
-    std::string final_message = knock_knock(secret_port1_int,secret_port2_int
-    ,target_IP,secret_phrase,knock_pattern_vector);
+    // std::cout << secret_port1 << " " << secret_port2 << std::endl;
+    // int secret_port1_int = std::stoi(secret_port1,nullptr,10);
+    // int secret_port2_int = std::stoi(secret_port2,nullptr,10);
+    // // TODO: think it works, but perhaps the phrase is wrong
+    // std::string final_message = knock_knock(secret_port1_int,secret_port2_int
+    // ,target_IP,secret_phrase,knock_pattern_vector);
 
 
 }   
