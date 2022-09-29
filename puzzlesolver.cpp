@@ -180,24 +180,23 @@ std::string solve_checksum(int port,std::string spoof_ip,int checksum,char* dest
     read_timeout.tv_usec = 50000;
     setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof(read_timeout));
     socklen_t len = sizeof(address);
+    while (recvmsg[0] != 'C'){
+        sendto(socket_fd,datagram,32,0,(struct sockaddr *)&address,sizeof(address));
 
-    int ding = sendto(socket_fd,datagram,32,0,(struct sockaddr *)&address,sizeof(address));
-    if(ding >0){std::cout << "Failed to send to checksum port!";}
+        int nread = recvfrom(socket_fd,buffer,sizeof(buffer),0,(struct sockaddr *)&address,&len); 
 
-    int nread = recvfrom(socket_fd,buffer,sizeof(buffer),0,(struct sockaddr *)&address,&len); 
-
-    if(nread > 0)
-    {
-        //get a list of responses from the server
-        std:: cout << "from " << inet_ntoa(sin.sin_addr) << " port " << ntohs(sin.sin_port) << " : " << buffer << std:: endl;
-        recvmsg = buffer;
+        if(nread > 0)
+        {
+            //get a list of responses from the server
+            std:: cout << "from " << inet_ntoa(sin.sin_addr) << " port " << ntohs(sin.sin_port) << ": " << buffer << std:: endl;
+            recvmsg = buffer;
+        }
+        else
+        {
+            std::cout << "Failed to receive from checksum port!" <<std::endl;
+        }
+        memset(buffer, 0, sizeof(buffer));
     }
-    else
-    {
-        std::cout << "Failed to receive from checksum port!" << std::endl<<std::endl;
-    }
-    memset(buffer, 0, sizeof(buffer));
-
     close(raw_david);
 
     return slice_secret_string(recvmsg);
@@ -206,7 +205,7 @@ std::string solve_checksum(int port,std::string spoof_ip,int checksum,char* dest
 
 
 std::string solve_evil_bit(int port,char* dest_ip){
-    std::cout << "\nSOLVING EVIL BIT" << std::endl;
+    std::cout << "\nSOLVING EVIL BIT:" << std::endl;
 
     // To receive the response
     int socket_fd;
@@ -227,7 +226,7 @@ std::string solve_evil_bit(int port,char* dest_ip){
     // Use this as source for the RAW socket IP/UDP header
     // So if it is this what you are doing, it is fine. I guess this would be the simplest possibility.
 
-   char buffer[4096];
+    char buffer[4096];
     std::string recvmsg;
     //create raw socekt
     int raw_david = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
@@ -302,26 +301,24 @@ std::string solve_evil_bit(int port,char* dest_ip){
     if (status != 0) {
         perror("Can't set IP_HDRINCL option on a socket");
     }
-    int evil_sent = sendto(raw_david, datagram, iph->ip_len, 0, (struct sockaddr *) &sin, sizeof(sin));
+    while (recvmsg[0] != 'Y'){
+        sendto(raw_david, datagram, iph->ip_len, 0, (struct sockaddr *) &sin, sizeof(sin));
 
+        struct timeval read_timeout;
+        read_timeout.tv_sec = 1;
+        read_timeout.tv_usec = 50000;
+        int time_status = setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof(read_timeout));
+        if (time_status != 0) {
+            perror("Can't set timeout option on a socket");
+        }
 
-
-    struct timeval read_timeout;
-    read_timeout.tv_sec = 1;
-    read_timeout.tv_usec = 50000;
-    int time_status = setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof(read_timeout));
-    if (time_status != 0) {
-        perror("Can't set timeout option on a socket");
+        socklen_t len = sizeof(socket_fd);
+        if(recvfrom(socket_fd,buffer,sizeof(buffer),0,(struct sockaddr *)&address,&len) < 0){
+            perror("Failed to receive from port in evil bit, trying again");
+        }
+        recvmsg = buffer;
     }
-
-    socklen_t len = sizeof(socket_fd);
-    if(recvfrom(socket_fd,buffer,sizeof(buffer),0,(struct sockaddr *)&address,&len) < 0){
-        perror("Evil bit recvfrom error");
-    }
-    recvmsg = buffer;
-
-    std:: cout << "from " << inet_ntoa(sin.sin_addr) << " port " << ntohs(sin.sin_port) << " : " << buffer << std:: endl;
-
+    std:: cout << "from " << inet_ntoa(sin.sin_addr) << " port " << ntohs(sin.sin_port) << ": " << buffer << std:: endl;
     //return the last 4 characters of the response which is the port number
     return recvmsg.substr(recvmsg.length()-4);
 }
@@ -365,7 +362,7 @@ std::string get_first_port(std::string message){
 }
 
 std::string solve_oracle(std::string port1, std::string &port2,int port, char* ip){
-    std::cout << "\nSOLVING ORACLE\n";
+    std::cout << "\nSOLVING ORACLE:\n";
     int socket_fd;
     struct sockaddr_in address;
     //TODO:make the hardcoded string with the secret ports here insteead of gigaloop
@@ -391,21 +388,22 @@ std::string solve_oracle(std::string port1, std::string &port2,int port, char* i
     read_timeout.tv_usec = 50000;
     setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof(read_timeout));
     //send to each port a
-    sendto(socket_fd,sentmsg.c_str(),sizeof(sentmsg) - 1,0,(struct sockaddr *)&address,sizeof(address));
-    
-    
-    socklen_t len = sizeof(address);
-    int nread = recvfrom(socket_fd,buffer,sizeof(buffer),0,(struct sockaddr *)&address,&len); 
+    while (recvmsg[0] != '4'){
+        sendto(socket_fd,sentmsg.c_str(),sizeof(sentmsg) - 1,0,(struct sockaddr *)&address,sizeof(address));
+        
+        
+        socklen_t len = sizeof(address);
+        int nread = recvfrom(socket_fd,buffer,sizeof(buffer),0,(struct sockaddr *)&address,&len); 
 
-    if(nread > 0)
-    {
-        if (buffer[0] != 'I'){
-            std:: cout << "from " << inet_ntoa(address.sin_addr) << " port " << ntohs(address.sin_port) << " : " << buffer << std:: endl;
-            recvmsg = buffer;
+        if(nread > 0)
+        {
+            if (buffer[0] != 'I'){
+                std:: cout << "from " << inet_ntoa(address.sin_addr) << " port " << ntohs(address.sin_port) << ": " << buffer << std:: endl;
+                recvmsg = buffer;
+            }
         }
+        memset(buffer, 0, sizeof(buffer));
     }
-    memset(buffer, 0, sizeof(buffer));
-
     close(socket_fd);
 
     return recvmsg;
@@ -417,7 +415,7 @@ std::string solve_oracle(std::string port1, std::string &port2,int port, char* i
 
 
 
-std::vector<std::string> solve_puzzle(char *ip, int port1, int port2, int port3, int port4)
+std::vector<std::string> send_to_open(char *ip, int port1, int port2, int port3, int port4)
 {
     int socket_fd;
     struct sockaddr_in address;
@@ -440,7 +438,6 @@ std::vector<std::string> solve_puzzle(char *ip, int port1, int port2, int port3,
     // code in loop gets the messages from the server and sends them back
     for (i = 0; i < 4; i++)
     {
-
         // Set the address
         make_socket_address(&address, open_ports[i], ip);
 
@@ -450,21 +447,24 @@ std::vector<std::string> solve_puzzle(char *ip, int port1, int port2, int port3,
         read_timeout.tv_usec = 50000;
         setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof(read_timeout));
         //send to each port a
-        sendto(socket_fd,sentmsg.c_str(),sizeof(sentmsg) - 1,0,(struct sockaddr *)&address,sizeof(address));
-        
+        while (true){
+            sendto(socket_fd,sentmsg.c_str(),sizeof(sentmsg) - 1,0,(struct sockaddr *)&address,sizeof(address));
+            socklen_t len = sizeof(address);
+            int nread = recvfrom(socket_fd,buffer,sizeof(buffer),0,(struct sockaddr *)&address,&len); 
+            if(buffer[0] == 'R'){
+                std::cout << "from " << inet_ntoa(address.sin_addr) << " port " << ntohs(address.sin_port) << ": " << buffer << ". Trying again" << std:: endl;
+            }
+            if(nread > 0 && buffer[0] != 'R')
+            {
+                //get a list of responses from the server
+                recvmsg = buffer;
+                recv_vec.push_back(recvmsg);
+                memset(buffer, 0, sizeof(buffer));
+                break;
+            }
 
-
-        socklen_t len = sizeof(address);
-        int nread = recvfrom(socket_fd,buffer,sizeof(buffer),0,(struct sockaddr *)&address,&len); 
-
-        if(nread > 0)
-        {
-            //get a list of responses from the server
-            recvmsg = buffer;
-            recv_vec.push_back(recvmsg);
+            memset(buffer, 0, sizeof(buffer));
         }
-
-        memset(buffer, 0, sizeof(buffer));
 
     }
         close(socket_fd);
@@ -478,6 +478,7 @@ std::vector<std::string> solve_puzzle(char *ip, int port1, int port2, int port3,
 
 std::string knock_knock(int secret_port1, int secret_port2,char* target_ip,std::string secret_message,std::vector<int> ports){
     //conducts the knocks in the order given by the oracle with the secret message as the payload
+    std::cout << std::endl << "Knocking:" << std::endl;
     int socket_fd;
     struct sockaddr_in address;
     char buffer[8192];
@@ -490,32 +491,36 @@ std::string knock_knock(int secret_port1, int secret_port2,char* target_ip,std::
     {
         perror("Error creating socket\n");
     }
-
+    while (recvmsg[0] != 'Y' && recvmsg[1] != 'o' && recvmsg[2] != 'u' && recvmsg[3] != ' ' && recvmsg[4] != 'h' && recvmsg[5] != 'a'){
     //send to each port in the knock pattern
-    for(int i = 0; i < ports.size(); i++){
+        for(int i = 0; i < ports.size(); i++){
 
-        make_socket_address(&address, ports[i], target_ip);
-        struct timeval read_timeout;
-        read_timeout.tv_sec = 0;
-        read_timeout.tv_usec = 50000;
-        setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof(read_timeout));
-        sendto(socket_fd,secret_message.c_str(),secret_message.size(),0,(struct sockaddr *)&address,sizeof(address));
+            make_socket_address(&address, ports[i], target_ip);
+            struct timeval read_timeout;
+            read_timeout.tv_sec = 0;
+            read_timeout.tv_usec = 50000;
+            setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof(read_timeout));
+            sendto(socket_fd,secret_message.c_str(),secret_message.size(),0,(struct sockaddr *)&address,sizeof(address));
 
-        //finally recieve the final messgage
-        socklen_t len = sizeof(address);
+            //finally recieve the final messgage
+            socklen_t len = sizeof(address);
 
-        int nread = recvfrom(socket_fd,buffer,sizeof(buffer),0,(struct sockaddr*)&address,&len);
+            int nread = recvfrom(socket_fd,buffer,sizeof(buffer),0,(struct sockaddr*)&address,&len);
 
-        if(nread > 0)
-        {
-            std:: cout << "from " << inet_ntoa(address.sin_addr) << " port " << ntohs(address.sin_port) << " : " << buffer << std:: endl;
-            recvmsg = buffer;
+            if(nread > 0)
+            {
+                std:: cout << "from " << inet_ntoa(address.sin_addr) << " port " << ntohs(address.sin_port) << ": " << buffer << std:: endl;
+                recvmsg = buffer;
+            }
+            memset(buffer, 0, sizeof(buffer));
+            if (recvmsg[0] == 'Y' && recvmsg[1] == 'o' && recvmsg[2] == 'u' && recvmsg[3] == ' ' && recvmsg[4] == 'h' && recvmsg[5] == 'a'){
+                break;
+            }
+
         }
-        memset(buffer, 0, sizeof(buffer));
-
     }
-
     close(socket_fd);
+    
     return recvmsg;
 
 }
@@ -565,10 +570,10 @@ int main(int argc, char *argv[])
     //returns a vector of the messages from server
     std::vector<std::string> msg_list;
     while (msg_list.size() < 4){
-        msg_list = solve_puzzle(target_IP, port1, port2, port3, port4);
+        msg_list = send_to_open(target_IP, port1, port2, port3, port4);
     }
     for(int i = 0; i < msg_list.size(); i++){
-        std:: cout << "from " << target_IP << " port " << open_ports[i] << " : " << msg_list[i] << std:: endl;
+        std:: cout << "from " << target_IP << " port " << open_ports[i] << ": " << msg_list[i] << std:: endl;
     }
                 
     std::string spoof_ip;
@@ -613,10 +618,9 @@ int main(int argc, char *argv[])
     int secret_port1_int = std::stoi(secret_port1,nullptr,10);
     int secret_port2_int = std::stoi(secret_port2,nullptr,10);
     // TODO: think it works, but perhaps the phrase is wrong
-    std::string final_message = knock_knock(secret_port1_int,secret_port2_int
-    ,target_IP,secret_phrase,knock_pattern_vector);
+    std::string final_message = knock_knock(secret_port1_int,secret_port2_int,target_IP,secret_phrase,knock_pattern_vector);
 
-
+    std::cout << "Final message: " << final_message << std::endl;
 }   
 
-// 4001 4008 4011 4090
+// 4021 4044 4071 4092
