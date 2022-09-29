@@ -8,6 +8,7 @@ typedef unsigned int ADDRESS_SIZE;
 #include <string>
 #include <iostream>
 #include <vector>
+#include <set>
 
 
 //Take a reference to a socket address and connect it to the given ip and port
@@ -28,7 +29,7 @@ int scan_ports(char *ip, int low, int high)
     int result;
     int i;
     int count = 0;
-    std::vector<int> open_ports;
+    std::set<int> open_ports;
     std:: string sentmsg = "Hello World";
     char buffer[4096];
     
@@ -40,35 +41,41 @@ int scan_ports(char *ip, int low, int high)
         return -1;
     }
 
-    for (i = low; i <= high; i++)
-    {
-
-        // Set the address
-        make_socket_address(&address, i, ip);
-
-        //set timeout so recv doesnt halt forever on non responding ports
-        struct timeval read_timeout;
-        read_timeout.tv_sec = 0;
-        read_timeout.tv_usec = 50000;
-        setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof(read_timeout));
-
-
-        sendto(socket_fd,"HelloWorld",sizeof("HelloWorld") - 1,0,(struct sockaddr *)&address,sizeof(address));
-
-        socklen_t len = sizeof(address);
-        int nread = recvfrom(socket_fd,buffer,sizeof(buffer),0,(struct sockaddr *)&address,&len); 
-
-     
-        if(nread > 0)
+    while (open_ports.size() < 4) {
+        for (i = low; i <= high; i++)
         {
-            std:: cout << "from " << inet_ntoa(address.sin_addr) << " port " << ntohs(address.sin_port) << " is open " << std:: endl;
+
+            // Set the address
+            make_socket_address(&address, i, ip);
+
+            //set timeout so recv doesnt halt forever on non responding ports
+            struct timeval read_timeout;
+            read_timeout.tv_sec = 0;
+            read_timeout.tv_usec = 50000;
+            setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof(read_timeout));
+
+
+            sendto(socket_fd,"HelloWorld",sizeof("HelloWorld") - 1,0,(struct sockaddr *)&address,sizeof(address));
+
+            socklen_t len = sizeof(address);
+            int nread = recvfrom(socket_fd,buffer,sizeof(buffer),0,(struct sockaddr *)&address,&len); 
+
+        
+            if(nread > 0)
+            {
+                open_ports.insert(ntohs(address.sin_port));
+            }
+            memset(buffer, 0, sizeof(buffer));
+
+
         }
-        memset(buffer, 0, sizeof(buffer));
-
-
     }
-        close(socket_fd);
-
+    close(socket_fd);
+    std::set<int>::iterator itr;
+    for(itr = open_ports.begin(); itr != open_ports.end(); itr++)
+    {
+        std:: cout << "from " << inet_ntoa(address.sin_addr) << " port " << *itr << " is open " << std:: endl;
+    }
 
     return 0;
 }
