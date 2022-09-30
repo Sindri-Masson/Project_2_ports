@@ -584,14 +584,14 @@ std::vector<int> parse_to_vector(std::string knock_pattern){
 int main(int argc, char *argv[])
 {
     //Make sure serverIp and port(High low) are supplied
-    if (argc != 4)
+    if (argc != 2)
     {
-        std::cout << "Usage ./client <serverIp> <portLow> <portHigh>" << std::endl;
+        std::cout << "Usage ./client <serverIp>" << std::endl;
         exit(0);
     }
     char* target_IP = argv[1];
-    int low_port = atoi(argv[2]);
-    int high_port = atoi(argv[3]);
+    int low_port = 4000;
+    int high_port = 4100;
 
     std::cout << "Scanning ports " << low_port << " to " << high_port << " on " << target_IP << std::endl;
     //Scan for the open ports and store them in a vector, the scanning function returns a set to avoid duplicates
